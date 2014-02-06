@@ -34,6 +34,9 @@ if ( ! defined( 'TRUST_FORM_PLUGIN_URL' ) )
 if ( ! defined( 'TRUST_FORM_PLUGIN_DIR' ) )
 	define( 'TRUST_FORM_PLUGIN_DIR', WP_PLUGIN_DIR . '/' . dirname( plugin_basename( __FILE__ ) ));
 	
+if ( ! defined( 'INQUIRY_IDENTIFIER' ) )
+	define( 'INQUIRY_IDENTIFIER', '[inquiry_identifier]' );
+
 new Trust_Form();
 
 class Trust_Form {
@@ -2064,6 +2067,8 @@ class Trust_Form_Front {
 				return;
 		}
 
+		$new_responce['data']['inquiry_identifier'] = $this->generate_inquiry_identifier($prev_responce, $new_responce);
+
 		if ( !defined( 'TRUST_FORM_DB_SUPPORT' ) || TRUST_FORM_DB_SUPPORT !== false )
 			add_post_meta( $this->id, 'answer', $new_responce );
 		
@@ -2162,6 +2167,10 @@ class Trust_Form_Front {
 					$subject = str_replace( '['.$name.']', $data['data'][$key], $subject );
 			}
 		}
+
+		add_filter('tr_pre_auto_reply_mail_subject', array( &$this, 'replace_inquiry_id_in_user_subject'), 10, 3);
+		add_filter('tr_pre_auto_reply_mail_body', array( &$this, 'replace_inquiry_id_in_user_body'), 10, 3);
+
 		$subject = apply_filters( 'tr_pre_auto_reply_mail_subject', $subject, $data['data'], $id );
 		$body = apply_filters( 'tr_pre_auto_reply_mail_body', $body, $data['data'], $id );
 		
@@ -2200,12 +2209,32 @@ class Trust_Form_Front {
 			}
 		}
 
+		add_filter('tr_subject_admin_mail', array( &$this, 'replace_inquiry_id_in_admin_subject'), 10, 3);
+
 		$subject = apply_filters( 'tr_subject_admin_mail', $subject, $data['data'], $id );
 
 		$headers = '';
 		$headers .= $this->admin_mail[0]['cc'] != '' ? 'cc:' . $this->admin_mail[0]['cc'] . "\n" : '' ;
 		$headers .= $this->admin_mail[0]['bcc'] != '' ? 'bcc:' . $this->admin_mail[0]['bcc'] . "\n" : '' ;
 		wp_mail( apply_filters( 'trust_form_admin_mail_to', $this->admin_mail[0]['to'], $id ) , $subject, $body, $headers );
+	}
+
+	public function generate_inquiry_identifier($prev_responce, $new_responce) {
+		$date_str = date('ymd', strtotime($new_responce['data']["date"]));
+		$new_inquiry_id = sprintf('%05d', count($prev_responce));
+		return $date_str . $new_inquiry_id;
+	}
+
+	public function replace_inquiry_id_in_user_subject($subject, $data, $id) {
+		return str_replace( INQUIRY_IDENTIFIER, $data['inquiry_identifier'], $subject );
+	}
+
+	public function replace_inquiry_id_in_user_body($body, $data, $id) {
+		return str_replace( INQUIRY_IDENTIFIER, $data['inquiry_identifier'], $body );
+	}
+
+	public function replace_inquiry_id_in_admin_subject($subject, $data, $id) {
+		return str_replace( INQUIRY_IDENTIFIER, $data['inquiry_identifier'], $subject );
 	}
 
 	public function wp_mail_from( $mail_from ) {
